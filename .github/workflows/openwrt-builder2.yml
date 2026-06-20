@@ -1,5 +1,5 @@
 name:
-  ImmortalWrt Builder2
+  ImmortalWrt Make Image
 
 permissions:
   contents: write
@@ -29,11 +29,6 @@ on:
         required: false
         type: string
         default: ''
-      ssh:
-        description: '是否执行 make menuconfig, 编译设备为 all 时无效'
-        required: false
-        type: boolean
-        default: false
       release:
         description: '是否发布编译产物到 Release'
         required: false
@@ -60,85 +55,8 @@ env:
   TZ: Asia/Shanghai
 
 jobs:
-  menuconfig:
-    name: ⚙️ Menuconfig & Push
-    if: github.event.inputs.ssh == 'true' && github.event.inputs.device != 'all'
-    runs-on: ubuntu-22.04
-    steps:
-      - name: 🙌 Checkout
-        uses: actions/checkout@v4
-
-      - name: 🛠️ Init Environment
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends libncurses-dev build-essential git wget python3 bzip2
-          sudo mkdir -p /workdir
-          sudo chown $USER:$GROUPS /workdir
-
-      - name: 🪜 Clone source code
-        working-directory: /workdir
-        run: |
-          git clone $REPO_URL -b $REPO_BRANCH --single-branch --filter=blob:none openwrt
-          ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
-
-      - name: 🔧 Set device variables
-        run: |
-          case "$DEVICE_INPUT" in
-            "256M") echo "CONFIG_FILE=config/256m.config" >> $GITHUB_ENV ;;
-            "128M") echo "CONFIG_FILE=config/128m.config" >> $GITHUB_ENV ;;
-            "128M-Ubootmod") echo "CONFIG_FILE=config/128muboot.config" >> $GITHUB_ENV ;;
-          esac
-
-      - name: 👩‍💻 Copy previous config if exists
-        run: |
-          if [ -f "$GITHUB_WORKSPACE/${CONFIG_FILE}" ]; then
-            cp -f "$GITHUB_WORKSPACE/${CONFIG_FILE}" /workdir/openwrt/.config
-          fi
-
-      - name: ⚙️ Load custom feeds
-        run: |
-          [ -e $FEEDS_CONF ] && mv $FEEDS_CONF openwrt/feeds.conf.default
-          chmod +x $DIY_P1_SH
-          cd openwrt
-          $GITHUB_WORKSPACE/$DIY_P1_SH
-
-      - name: 🧬 Update & Install feeds
-        run: cd openwrt && ./scripts/feeds update -a && ./scripts/feeds install -a
-
-      - name: 🧩 Load custom configuration
-        run: |
-          [ -e $CONFIG_FILE ] && cp -f $CONFIG_FILE openwrt/.config
-          chmod +x $DIY_P2_SH
-          cd openwrt
-          $GITHUB_WORKSPACE/$DIY_P2_SH
-
-      - name: ⌨️ SSH connection to Menuconfig
-        uses: mxschmitt/action-tmate@v3
-        timeout-minutes: 15
-          
-      - name: 📤 Push config to main branch
-        run: |
-          SRC="/workdir/openwrt/.config"
-          DST="$GITHUB_WORKSPACE/${CONFIG_FILE}"
-          mkdir -p "$(dirname "$DST")"
-          cp -f "$SRC" "$DST"
-          cd "$GITHUB_WORKSPACE"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add "$CONFIG_FILE"
-          
-          CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
-          
-          git diff --cached --quiet || (
-            git commit -m "Update config: ${CONFIG_FILE}" || true
-            git pull --rebase origin $CURRENT_BRANCH
-            git push -f origin HEAD:$CURRENT_BRANCH
-          )
-
   build:
     name: 🔨 Build Firmware
-    needs: menuconfig
-    if: always() && (needs.menuconfig.result == 'success' || needs.menuconfig.result == 'skipped')
     runs-on: ubuntu-22.04
     
     steps:
