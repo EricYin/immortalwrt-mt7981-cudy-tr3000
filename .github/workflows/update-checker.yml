@@ -50,8 +50,8 @@ jobs:
         with:
           token: ${{ github.token }}
           event-type: Source Code Update
-          client-payload: '{"device": "all", "repo": "https://github.com/padavanonly/immortalwrt-mt798x-6.6"}'
-
+          client-payload: '{"device": "all", "repo": "https://github.com/padavanonly/immortalwrt-mt798x-6.6", "release": "true"}'
+          
       - name: Delete workflow runs
         uses: Mattraks/delete-workflow-runs@v2
         with:
